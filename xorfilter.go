@@ -72,7 +72,10 @@ func (filter *Xor8) Contains(key uint64) bool {
 	r1 := uint32(rotl64(hash, 21))
 	r2 := uint32(rotl64(hash, 42))
 	h0 := reduce(r0, filter.BlockLength)
-	h1 := (h0 + 1 + reduce(r1, filter.BlockLength-1)) % filter.BlockLength
+	h1 := reduce(r1, filter.BlockLength)
+	if h1 == h0 {
+		h1 ^= 1
+	}
 	h2 := reduce(r2, filter.BlockLength) + filter.BlockLength
 	return f == (filter.Fingerprints[h0] ^ filter.Fingerprints[h1] ^
 		filter.Fingerprints[h2])
@@ -87,7 +90,10 @@ func (filter *Xor8) geth0h1h2(k uint64) hashes {
 	r2 := uint32(rotl64(hash, 42))
 
 	answer.h0 = reduce(r0, filter.BlockLength)
-	answer.h1 = (answer.h0 + 1 + reduce(r1, filter.BlockLength-1)) % filter.BlockLength
+	answer.h1 = reduce(r1, filter.BlockLength)
+	if answer.h1 == answer.h0 {
+		answer.h1 ^= 1
+	}
 	answer.h2 = reduce(r2, filter.BlockLength)
 	return answer
 }
@@ -99,7 +105,11 @@ func (filter *Xor8) geth0(hash uint64) uint32 {
 
 func (filter *Xor8) geth1(h0 uint32, hash uint64) uint32 {
 	r1 := uint32(rotl64(hash, 21))
-	return (h0 + 1 + reduce(r1, filter.BlockLength-1)) % filter.BlockLength
+	h1 := reduce(r1, filter.BlockLength)
+	if h1 == h0 {
+		h1 ^= 1
+	}
+	return h1
 }
 
 func (filter *Xor8) geth2(hash uint64) uint32 {
@@ -111,11 +121,12 @@ func (filter *Xor8) geth2(hash uint64) uint32 {
 // The caller is responsible to ensure that there are no duplicate keys.
 func Populate(keys []uint64) *Xor8 {
 	size := len(keys)
-	capacity := 32 + uint32(math.Ceil(1.27*float64(size)))
+	capacity := uint32(math.Ceil(1.29 * float64(size)))
 	filter := &Xor8{}
 	filter.Size = uint32(len(keys))
 	filter.BlockLength = capacity / 2
-	filter.BlockLength = (filter.BlockLength + 63) &^ 63 // round up to 64 bit blocks
+	filter.BlockLength &^= 1
+	//filter.BlockLength = (filter.BlockLength + 63) &^ 63 // round up to 64 bit blocks
 	capacity = filter.BlockLength * 2
 	filter.Fingerprints = make([]uint8, capacity, capacity)
 	var rngcounter uint64 = 1
